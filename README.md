@@ -1,108 +1,114 @@
-# Handwritten Digits GAN
+# Handwritten Digits GAN with WGAN-GP Architecture
 
-This repository contains a PyTorch implementation of a Generative Adversarial Network (GAN) designed to generate handwritten digits resembling those in a custom dataset. The code leverages CUDA for accelerated training on compatible GPUs.
+This repository contains an implementation of a Wasserstein GAN with Gradient Penalty (WGAN-GP) designed to generate realistic handwritten digits. The model is built using PyTorch and includes sophisticated techniques to stabilize GAN training.
 
 ## Overview
 
-The GAN consists of:
-- **Generator**: Creates synthetic 28x28 grayscale images from random noise.
-- **Discriminator**: Distinguishes real images from generated ones.
-- **Custom Dataset Loader**: Reads 28x28 PNG images with transparent backgrounds and black ink from a specified directory structure.
+This GAN implementation uses:
+- **WGAN-GP Architecture**: For more stable training compared to traditional GANs
+- **Instance Noise**: Gradually decreasing noise to prevent discriminator overfitting
+- **Learning Rate Scheduling**: Step-based LR reduction to fine-tune training
+- **Batch Normalization**: In the generator for improved stability
+- **Smaller Discriminator Network**: To balance generator/discriminator competition
 
-The model is trained to generate realistic handwritten digits, with periodic image outputs saved during training for progress visualization.
+The model generates convincing 28×28 grayscale handwritten digits that resemble those in the training dataset.
 
 ## Dataset
 
-The code expects a dataset of handwritten digits stored at `D:\HandwrittenDigitsDataset\dataset` on your local machine. The directory structure should be:
+The code requires a dataset of handwritten digits stored in the following structure:
 
 ```
 D:\HandwrittenDigitsDataset\dataset
-├── 0\0\1.png
-├── 0\0\2.png
+├── 0\0\*.png
+├── 1\1\*.png
 ├── ...
-├── 0\0\10772.png
-├── 1\1\1.png
-├── ...
-├── 9\9\10772.png
+└── 9\9\*.png
 ```
 
-Each PNG is a 28x28 grayscale image with a transparent background and black ink, similar to MNIST but in a custom format. The dataset is downloaded from Kaggle.
+Each PNG should be a 28×28 grayscale image with a transparent background and black ink. You can modify the dataset path in the code if needed.
 
 ## Requirements
 
 - Python 3.8+
-- PyTorch (with CUDA support for GPU acceleration)
+- PyTorch (with CUDA support recommended)
+- torchvision
 - Pillow (PIL)
 - Matplotlib
 - NumPy
 
-Install dependencies using:
+Install dependencies:
 
 ```bash
 pip install torch torchvision pillow matplotlib numpy
 ```
 
-Ensure you have a CUDA-compatible GPU and the appropriate CUDA toolkit installed for GPU acceleration.
+## Technical Details
+
+### Model Architecture
+
+- **Generator**: 
+  - Features batch normalization and dropout for stability
+  - Three-layer network with 512→1024→784 neurons
+  - tanh activation for normalized output images
+
+- **Discriminator**: 
+  - Purposely designed smaller than the generator (256→128→1)
+  - Includes dropout layers to prevent overfitting
+  - No sigmoid activation (in line with WGAN principles)
+
+### Training Techniques
+
+- **Gradient Penalty**: Enforces 1-Lipschitz constraint on discriminator
+- **Instance Noise**: Applied to both real and fake images, decreasing over time
+- **Learning Rate Scheduling**: Reduces learning rates by half every 5 epochs
+- **Differential Learning Rates**: Generator learns 10× faster than discriminator
+- **Gradient Clipping**: Prevents extreme gradients for better stability
 
 ## Usage
 
 1. **Clone the Repository**:
-
    ```bash
-   git clone https://github.com/your-username/handwritten-digits-gan.git
-   cd handwritten-digits-gan
+   git clone https://github.com/yourusername/handwritten-digits-wgan.git
+   cd handwritten-digits-wgan
    ```
 
-2. **Prepare the Dataset**:
+2. **Train the Model**:
+Run all the cells in the `DigitsGAN.ipynb` file one by one.
 
-   Place your dataset in `D:\HandwrittenDigitsDataset\dataset` with the structure described above. Update the path in `gan_handwritten_digits.py` if your dataset is located elsewhere.
+   - Training runs for 50 epochs by default
+   - Generated samples are saved every 10 epochs
+   - Loss values are printed every 100 batches
 
-3. **Run the Training**:
-
-   Execute the script to train the GAN:
-
-   ```bash
-   python gan_handwritten_digits.py
+3. **Generate Images**:
+   After training, load the saved model to generate new digits:
+   ```python
+   generator = Generator(latent_dim=100)
+   generator.load_state_dict(torch.load('generator.pth'))
+   z = torch.randn(16, 100)
+   fake_imgs = generator(z)
    ```
 
-   - Training runs for 50 epochs by default.
-   - Every 10 epochs, generated sample images are saved as `generated_digits_epoch_X.png`.
-   - Model checkpoints are saved as `generator.pth` and `discriminator.pth`.
+## Results
 
-4. **Monitor Progress**:
+Training progress shows discriminator loss fluctuating around zero (expected in WGAN) while the generator loss gradually improves. The discriminator provides a balanced training signal without completely overwhelming the generator.
 
-   - Training progress is printed every 100 batches, showing discriminator and generator losses.
-   - Check the generated images in the project directory to evaluate quality.
+## Troubleshooting
 
-## Code Structure
+- **Mode Collapse**: If generated images lack diversity, try:
+  - Increasing instance noise
+  - Further reducing the discriminator learning rate
+  - Adding more dropout to the discriminator
 
-- **gan_handwritten_digits.py**: Main script containing:
-  - Custom `HandwrittenDigitsDataset` class for loading images.
-  - `Generator` and `Discriminator` neural network definitions.
-  - Training loop with adversarial loss and Adam optimizers.
-  - Image saving functionality using Matplotlib.
+- **Poor Image Quality**: If generated images are blurry or unrealistic:
+  - Train for more epochs
+  - Increase the generator capacity
+  - Adjust the learning rate scheduling
 
-## Hyperparameters
+## References
 
-- **Latent Dimension**: 100
-- **Learning Rate**: 0.0002
-- **Beta1 (Adam)**: 0.5
-- **Batch Size**: 64
-- **Epochs**: 50
-
-Adjust these in the script if needed for your use case.
-
-## Outputs
-
-- **Generated Images**: Saved as `generated_digits_epoch_X.png` every 10 epochs, showing a 4x4 grid of generated digits.
-- **Model Checkpoints**: `generator.pth` and `discriminator.pth` for resuming training or inference.
-
-## Notes
-
-- The code assumes a CUDA-enabled GPU is available. If not, it falls back to CPU, but training will be slower.
-- Modify the dataset path in the script if your data is stored elsewhere.
-- The GAN may require tuning (e.g., hyperparameters, network architecture) for optimal results on your specific dataset.
-- Generated images may initially look noisy; quality typically improves with more epochs.
+- [Improved Training of Wasserstein GANs](https://arxiv.org/abs/1704.00028)
+- [Wasserstein GAN](https://arxiv.org/abs/1701.07875)
+- [Instance Noise: A technique for stabilizing GAN training](https://arxiv.org/abs/1406.2661)
 
 ## ⚠️ Warning
-This code is generated by an LLM (**Grok 3**) and may have certain problems. Please run this code at your own risk. This code is published for **educational purposes** only. The author is **not** responsible for any damage caused by running this code.
+This code is generated using LLMs (**Grok 3** and **Claude 3.7 Sonnet**) and may have certain problems and/or inaccuracies. Please run this code at your own risk. This code is published for **educational purposes** only. The author is **not** responsible for any damage caused by running this code.
